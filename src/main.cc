@@ -4,6 +4,7 @@
 
 #include "database.h"
 #include "sqlite3_wrapper.h"
+#include "bible.h"
 
 using namespace std;
 
@@ -11,68 +12,6 @@ const string CSV_FILENAME = "db/EQUIV.csv";
 const string DB_FILENAME = "db/EQUIV.db";
 const string RAW_FOLDER = "raw/";
 const string TEX_FOLDER = "tex/";
-
-
-enum BibleBook {
-    // Old Testament
-    // TODO:
-
-    // New Testament
-    MATT = 40, MARK, LUKE, JOHN,
-    ACTS, ROM, COR_A, COR_B, GAL,
-    EPH, PHIL, COL, THES_A, THES_B,
-    TIM_A, TIM_B, TITUS, PHLM, HEB,
-    JAS, PET_A, PET_B, JOHN_A, JOHN_B,
-    JOHN_C, JUDE, REV
-};
-
-// Books in protestant bible
-const vector<string> BIBLE_BOOKS = {"",
-    // Old Testament
-    "Gènesi", "Èxode", "Levític", "Nombres", "Deuteronomi",     //1-5
-    "Josuè", "Jutges", "Rut", "Primer llibre de Samuel",        //6-9
-    "Segon llibre de Samuel", "Primer llibre dels Reis",        //10-11
-    "Segon llibre dels Reis", "Primer llibre de les Cròniques", //12-13
-    "Segon llibre de les Cròniques", "Esdres", "Nehemies",      //14-16
-    "Ester", "Job", "Salms", "Proverbis", "Eclesiastès",        //17-21
-    "Càntic de Salomó", "Isaïes", "Jeremies", "Lamentacions",   //22-25
-    "Ezequiel", "Daniel", "Osees", "Joel", "Amós", "Abdies",    //26-31
-    "Jonàs", "Miquees", "Nahum", "Habacuc", "Sofonies", "Ageu", //32-37
-    "Zacaries", "Malaquies",                                    //38-39
-
-    // New Testament
-    "Evangeli segons Mateu", "Evangeli segons Marc",            //40-41
-    "Evangeli segons Lluc", "Evangeli segons Joan",             //42-43
-    "Fets dels Apòstols", "Carta als Romans",                   //44-45
-    "Primera carta als Corintis", "Segona carta als Corintis",  //46-47
-    "Carta als Gàlates", "Carta als Efesis",                    //48-49
-    "Carta als Filipencs", "Carta als Colossencs",              //50-51
-    "Primera carta als Tessalonicencs",                         //52
-    "Segona carta als Tessalonicencs",                          //53
-    "Primera carta a Timoteu", "Segona carta a Timoteu",        //54-55
-    "Carta a Titus", "Carta a Filemó", "Epístola als Hebreus",  //56-58
-    "Carta de Jaume",                                           //57
-    "Primera carta de Pere", "Segona carta de Pere",            //58-59
-    "Primera carta de Joan", "Segona carta de Joan",            //60-61
-    "Tercera carta de Joan", "Carta de Judes",                  //62-63
-    "Llibre de les Revelacions"                                 //64
-};
-
-const vector<string> BIBLE_BOOKS_SHORT = { "",
-    // Old Testament
-    "Gn", "Ex", "Lv", "Nm", "Dt", "Jos", "Jt", "Rt", "1 Sa",    // 1-9
-    "2 Sa", "1 Re", "2 Re", "1 Cr", "2 Cr", "Esd", "Ne", "Est", // 10-17
-    "Jb", "Sl", "Pr", "Ecl", "Ct", "Is", "Jr", "Lm", "Ez",      // 18-26
-    "Dn", "Os", "Jl", "Am", "Ab", "Jon", "Mi", "Na", "Ha",      // 27-35
-    "So", "Ag", "Za", "Ml",                                     // 36-39
-
-    // New Testament
-    "Mt", "Mc", "Lc", "Jn", "Ac", "Rm", "1 Co", "2 Co", "Ga",
-    "Ef", "Fl", "Col", "1 Te", "2 Te", "1 Tm", "2 Tm", "Tt",
-    "Flm", "He", "Jm", "1 Pe", "2 Pe", "1 Jn", "2 Jn", "3 Jn",
-    "Jud", "Ap"
-};
-
 
 string scan_files(string folder) {
     stringstream ss;
@@ -95,31 +34,53 @@ string scan_files(string folder) {
     return result;
 }
 
-// TODO: IT SHOULD GET RAW_FILENAME, TEX_FILENAME AND BOOK,CHAPTER NUMBERS
-void rendering_file(Database &db, string filename) {
+// Render a specified Bible chapter.
+// db is a Database connection to check word data
+// rendered_chapters is a list of the rendered files that
+// is filled in the function to later know which files have
+// to be merged.
+// book and chapter are the number of book and chapter
+// Returns true if the raw file existed and could be rendered
+// If the file doesn't exist, returns false.
+bool render_chapter(Database &db, vector<string> &rendered_chapters, int book, int chapter) {
+    // Creating filenames
     stringstream ss;
-    ss << RAW_FOLDER << filename << ".md";
-    ifstream input_file(ss.str());
+    ss << setw(2) << setfill('0') << right << dec << book;
+    ss << "-";
+    ss << setw(2) << setfill('0') << right << dec << chapter;
+    string file_num = ss.str();
 
-    stringstream st;
-    st << TEX_FOLDER << filename << ".tex";
+    ss.str(string());
+    ss << RAW_FOLDER << file_num << ".md";
+    string file_raw = ss.str();
+
+    ss.str(string());
+    ss << TEX_FOLDER << file_num;
+    string tex_chapter = ss.str();
+    ss << ".tex";
+    string file_tex = ss.str();
+
+    // Opening file streams
+    ifstream input_file(file_raw);
     ofstream output;
-	output.open(st.str());
+	output.open(file_tex);
+
+    // Stopping condition of the render loop
+    // If the file does not exist, return false.
+    if(not input_file.is_open()) {
+        return false;
+    }
 
     if(not output.is_open()) {
-		cout << "Error: file " << st.str() << " cannot be opened" << endl;
-		return;
+		cout << "Error: file " << file_tex << " cannot be opened" << endl;
+		return false;
 	}
 
-    int pos_filename = filename.find("-");
-    string num_book = filename.substr(0,pos_filename);
-    string num_chapter = filename.erase(0,pos_filename+1);
-
-    int book = stoi(num_book);
-    int chapter = stoi(num_chapter);
+    // Counters
+    // int book, int chapter
     int versicle = 1;
 
-    cout << "Processing BOOK" << book << " : " << chapter << endl;
+    cout << "Processing: " << BIBLE_BOOKS_SHORT[book] << " : " << chapter << endl;
 
     // chapter title (bible book)
     if(chapter == 1) {
@@ -150,6 +111,7 @@ void rendering_file(Database &db, string filename) {
         output << chapter << ":" << versicle << ")}" << endl;
 		
 		while(continue_loop) {
+            // Tokenizer
 			int pos = line.find(" ");
 			if(pos == string::npos) {
 				continue_loop = false;
@@ -159,19 +121,13 @@ void rendering_file(Database &db, string filename) {
 				line = line.erase(0, pos+1);
 			}
 			
-			//cout << "> " << str_word << endl;
-
-            DataRow dr = DataRow();
-            dr.book = book;
-            dr.chapter = chapter;
-            dr.versicle = versicle;
-            dr.word = word;
-            if(str_word != "") {
-                dr.greek = str_word;
-            } else {
+            if(str_word == "") {
                 // End of the line
                 continue;
             }
+
+            // Word processing
+            DataRow dr = DataRow(book, chapter, versicle, word, str_word);
 			
             db.searchByPosition(dr);
             cout << dr.show() << endl;
@@ -207,37 +163,40 @@ void rendering_file(Database &db, string filename) {
 			++word;
 		}		
 		++versicle;
-
     }
 
     output.close();
+    rendered_chapters.push_back(tex_chapter);
+    return true;
+}
+
+void test(Database &db) {
+    DataRow d;
+    d.greek = "φυλακη";
+    db.searchByWord(d);
 }
 
 int main(int argc, char** argv) {
-    string root_directory = "";
-    string option = "";
     Database db = Database(CSV_FILENAME, DB_FILENAME);
 
+    // Flags
     bool recreate_database = false;
     bool parse_files = false;
     bool remake_tex = false;
 
     // First parameter skipped
     for(int i = 1; i < argc; ++i) {
-        if(strcmp(argv[i],"render") == 0) {
+        string param = argv[i];
+
+        if(param == "render") {
             parse_files = true;
             remake_tex = true;
-        } else if (strcmp(argv[i],"rebuild") == 0) {
+        } else if (param == "rebuild") {
             recreate_database = true;
-        } else if (strcmp(argv[i],"export") == 0) {
+        } else if (param == "export") {
             remake_tex = true;
-        } else if (strcmp(argv[i],"test") == 0) {
-            // test
-            DataRow d;
-            d.greek = "φυλακη";
-            db.searchByWord(d);
-
-            return 0;
+        } else if (param == "test") {
+            test(db);
         }
     }
 
@@ -247,41 +206,21 @@ int main(int argc, char** argv) {
     }
 
     if(parse_files) {
-        string files = scan_files(RAW_FOLDER);
+        //string files = scan_files(RAW_FOLDER);
+        vector<string> chapters;
 
-        vector<string> files_to_append;
+        int book = MATT;
+        while(book >= MATT and book <= REV) {
+            int chapter = 1;
+            bool finished_chapter = false;
 
-        int book_count = MATT;
-        while(book_count >= MATT and book_count <= REV) {
-            int chapter_count = 1;
-            while(true) {
-                stringstream ss;
-                ss << setw(2) << setfill('0') << right << dec << book_count;
-                ss << "-";
-                ss << setw(2) << setfill('0') << right << dec << chapter_count;
-                string file_num = ss.str();
-
-                ss.str(string());
-                ss << RAW_FOLDER << file_num << ".md";
-                string file_raw = ss.str();
-
-                ss.str(string());
-                ss << TEX_FOLDER << file_num;
-                string file_tex = ss.str();
-
-                ifstream chapter(file_raw);
-                if(chapter.is_open()) {
-                    chapter.close();
-                    // existe
-                    rendering_file(db, file_num);
-                    files_to_append.push_back(file_tex);
-                } else {
-                    // no more, following chapter
-                    break;
-                }
-                ++chapter_count;
+            // Breaking condition when render_chapter returns false.
+            // So, not false is true, when "finished chapter".
+            while(not finished_chapter) {
+                finished_chapter = not render_chapter(db, chapters, book, chapter);
+                ++chapter;
             }
-            ++book_count;
+            ++book;
         }
 
         // Creating index file
@@ -291,53 +230,20 @@ int main(int argc, char** argv) {
         ofstream output;
 	    output.open(ss.str());
 
-        output << "\\documentclass{book}" << endl;
-        output << "\\usepackage{fontspec}" << endl;
-        output << "\\usepackage[catalan]{babel}" << endl;
-        output << "\\setmainfont{Liberation Serif}" << endl;
-        output << "\\setsansfont{Liberation Sans}" << endl;
-        output << "\\newfontfamily{\\greekfont}{Liberation Serif}" << endl;
-        output << "\\newfontfamily{\\greekfontsf}{Liberation Sans}" << endl;
+        // Inserting file settings
+        output << "\\input{preamble}" << endl;
         
-        output << "\\setcounter{tocdepth}{1}" << endl;
-
-        output << endl;
-        /*output << "\\newcommand\\trad[2]%" << endl;
-        output << "{\\begin{tabular}[b]{@{}c@{}}" << endl;
-        output << "\\footnotesize #2\\\\" << endl;
-        output << "#1" << endl;
-        output << "\\end{tabular}%" << endl;
-        output << "}" << endl;*/
-        output << "\\newcommand\\trad[2]%" << endl;
-        output << "{\\begin{tabular}[b]{@{}c@{}}" << endl;
-        output << "#1\\\\" << endl;
-        output << "\\tiny #2" << endl;
-        output << "\\end{tabular}%" << endl;
-        output << "}" << endl;
-        
-        // Main properties of document
-        output << "\\title{Nou Testament Interlinial}" << endl;
-        output << "\\date{\\today}" << endl;
-        output << "\\author{Edició de Josep Manel Suari}" << endl;
-
         // Inserting references for each file
         output << "\\begin{document}" << endl;
         output << "\\maketitle" << endl;
         output << "\\tableofcontents" << endl;
         output << "\\mainmatter" << endl;
-        //output << "\\chapter{Dedication}" << endl;
-        //TODO
-        //output << "\\chapter{Copyright}" << endl;
-        //TODO
-        //output << "\\chapter{Acknowledgements}" << endl;
-        // TODO
 
-        //....
-        for(int i = 0; i < files_to_append.size(); ++i) {
+        for(int i = 0; i < chapters.size(); ++i) {
             // \include only for chapters/sections; if not, \input
-            output << "\\input{" << files_to_append[i] << "}" << endl;
+            output << "\\input{" << chapters[i] << "}" << endl;
         }
-        //....
+
         output << "\\end{document}" << endl;
 	    output.close();
     }

@@ -1,0 +1,34 @@
+\documentclass{book}
+\usepackage{fontspec}
+\usepackage[catalan]{babel}
+
+%% Font settings
+\setmainfont{Liberation Serif}
+\setsansfont{Liberation Sans}
+\newfontfamily{\greekfont}{Liberation Serif}
+\newfontfamily{\greekfontsf}{Liberation Sans}
+
+%% TOC settings
+\setcounter{tocdepth}{1}
+
+%% Interlinear display command
+\newcommand\trad[2]%
+{\begin{tabular}[b]{@{}c@{}}
+#1\\
+\tiny #2
+\end{tabular}%
+}
+
+\newcommand\tradtres[3]%
+{\begin{tabular}[b]{@{}c@{}c@{}}
+\footnotesize #2\\
+\footnotesize #3\\
+#1
+\end{tabular}%
+}
+
+%% Main properties of document
+\title{Nou Testament Interlinial}
+\date{\today}
+\author{Edició de Josep Manel Suari}
+
