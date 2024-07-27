@@ -42,7 +42,7 @@ public:
     void makeTexPath() {
         stringstream ss;
         ss << TEX_FOLDER << name << ".tex";
-        raw = ss.str();
+        tex = ss.str();
     }
 };
 
