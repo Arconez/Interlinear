@@ -65,48 +65,51 @@ int callback(void *NotUsed, int argc, char **argv, char **azColName) {
 
 // Simple callback to get only one result
 int select_one_result(void *data, int argc, char **argv, char **azColName) {
-    cout << "Args: " << argc << endl;
+    /*cout << "Args: " << argc << endl;
     if(argc != 1) {
         cout << "results not found!" << endl;
-    }
+    }*/
     
     //cout << "---- " << argv[0] << endl;
     DataRow *res = (DataRow*)data;
-    try {
-        res->catalan = string(argv[0]);
-    } catch(exception) {
-        cout << "Results not found" << endl;
+    if(argv == nullptr) {
+        cout << "results not found" << endl;
         res->catalan = "";
+    } else {
+        res->catalan = string(argv[0]);
     }
+
     return 0;
 }
 
 // Callback to get several results (return a vector of DataRow)
 int Database::select_results(void *data, int argc, char **argv, char **azColName) {
     cout << "Args: " << argc << endl;
-    if(argc == 0) {
+    /*if(argc == 0) {
         cout << "results not found!" << endl;
         return 0;
-    }
+    }*/
 
     /*for(int i = 0; i<argc; i++) {
         cout << i << " " << azColName[i] << " = ";
         cout <<  (argv[i] ? argv[i] : "NULL") << endl;
     }*/
 
-    ResultRows *results = (ResultRows*)data;
+    if(data != nullptr) {
+        ResultRows *results = (ResultRows*)data;
 
-    DataRow result;
-    result.book = atoi(argv[DataRowIdx::BOOK]);
-    result.chapter = atoi(argv[DataRowIdx::CHAPTER]);
-    result.versicle = atoi(argv[DataRowIdx::VERSICLE]);
-    result.word = atoi(argv[DataRowIdx::WORD]);
-    result.greek = argv[DataRowIdx::GREEK];
-    result.mab = argv[DataRowIdx::MAB];
-    result.morf = argv[DataRowIdx::MORF];
-    result.catalan = argv[DataRowIdx::CATALAN];
+        DataRow result;
+        result.book = atoi(argv[DataRowIdx::BOOK]);
+        result.chapter = atoi(argv[DataRowIdx::CHAPTER]);
+        result.versicle = atoi(argv[DataRowIdx::VERSICLE]);
+        result.word = atoi(argv[DataRowIdx::WORD]);
+        result.greek = argv[DataRowIdx::GREEK];
+        result.mab = argv[DataRowIdx::MAB];
+        result.morf = argv[DataRowIdx::MORF];
+        result.catalan = argv[DataRowIdx::CATALAN];
 
-    results->results.push_back(result);
+        results->results.push_back(result);
+    }
 
     return 0;
 }
@@ -284,10 +287,12 @@ bool Database::searchByPosition(DataRow &data) {
     ss << "BOOK = " << data.book;
     ss << " AND CHAPTER = " << data.chapter;
     ss << " AND VERSICLE = " << data.versicle;
-    ss << " AND WORD = " << data.word << " LIMIT 1";
+    ss << " AND WORD = " << data.word;
+    ss << " AND GREEK = \"" << data.greek << "\" LIMIT 1";
     string conditions = ss.str();
 
     const char* sql = SQL_select("EQUIV","CATALAN", conditions);
+    //cout << sql << endl;
     db.executeQueryWithCallback(sql, select_one_result, &data);
 
     return (data.catalan != "");

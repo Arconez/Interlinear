@@ -35,50 +35,44 @@ bool Book::render_versicle(string line) {
         // Word processing
         DataRow dr = DataRow(_book, _chapter, _versicle, _word, word);
         
-        db->searchByPosition(dr);
+        bool word_found = db->searchByPosition(dr);
         cout << dr.show() << endl;
-        bool word_found = (dr.catalan == "");
+
+        /* searchByPosition search by position and gives the word 
+            that is in the text. If is not the same, yields error. */
 
         if(word_found) {
-            bool same_word = (dr.greek == word);
-            if(same_word) {
-                // Replace word
-                _output << "\\trad{" << word << "}{" << dr.catalan << "} ";
-            } else {
-                // Error
-                stringstream msg;
-                msg << "ERROR A " << BIBLE_BOOKS_SHORT[_book] << " (" << _chapter << ":" << _versicle << ")" << endl;
-                msg << " ==> Error de concordança entre paraules: al text '" << word;
-                msg << "' i a la base de dades '" << dr.greek << "'." << endl;
-                msg << "[Aborta processament capítol]" << endl;
-                messages.push(msg.str());
-                return false;
-            }
-        } else {
+            // Replace word
+            _output << "\\trad{" << word << "}{" << dr.catalan << "} ";
+        } 
+        else {
             // Word not found (try again)
-            vector<DataRow> results;
-            try {
-                results = db->searchByWord(dr);
-            } catch (exception e) {
+            vector<DataRow> results = db->searchByWord(dr);
+            
+            if(results.empty()) {
                 // Error
                 stringstream msg;
                 msg << "ERROR A " << BIBLE_BOOKS_SHORT[_book] << " (" << _chapter << ":" << _versicle << ")" << endl;
-                msg << " ==> La paraula al text '" << word;
+                msg << " ==> La paraula " << _word << " al text '" << word;
                 msg << "' no es troba a la base de dades." << endl;
                 msg << "[Aborta processament capítol]" << endl;
                 messages.push(msg.str());
                 return false;
+            } else {
+                stringstream msg;
+                string default_word = results[0].catalan;
+
+                bool notify_warnings = true;
+                if(notify_warnings) {
+                    msg << "ADVERTÈNCIA A " << BIBLE_BOOKS_SHORT[_book] << " (" << _chapter << ":" << _versicle << ")" << endl;
+                    msg << " ==> La paraula " << _word << " al text '" << word << "' genera diversos resultats." << endl;
+                    msg << "[Per defecte el primer resultat '" << default_word << "']" << endl;
+                    messages.push(msg.str());
+                }
+
+                // By default, the first one
+                _output << "\\trad{" << word << "}{ " << default_word << "} ";
             }
-
-            stringstream msg;
-            string default_word = results[0].catalan;
-            msg << "ADVERTÈNCIA A " << BIBLE_BOOKS_SHORT[_book] << " (" << _chapter << ":" << _versicle << ")" << endl;
-            msg << " ==> La paraula al text '" << word << "' genera diversos resultats." << endl;
-            msg << "[Per defecte el primer resultat '" << default_word << "']" << endl;
-            messages.push(msg.str());
-
-            // By default, the first one
-            _output << "\\trad{" << word << "}{ " << default_word << "} ";
         }
         ++_word;
     }
