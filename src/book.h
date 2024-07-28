@@ -11,6 +11,8 @@
 #include "bible.h"
 #include "file.h"
 
+#define NOTIFY_WARNINGS 0
+
 using namespace std;
 
 class Book {

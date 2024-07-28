@@ -17,7 +17,7 @@ bool Book::render_versicle(string line) {
     
     if(line.empty()) {
         stringstream msg;
-        msg << "ADVERTÈNCIA A " << BIBLE_BOOKS_SHORT[_book] << " (" << _chapter << ":" << _versicle << ")" << endl;
+        msg << "ADVERTÈNCIA [" << _book << "_" << _chapter << "] A " << BIBLE_BOOKS_SHORT[_book] << " (" << _chapter << ":" << _versicle << ")" << endl;
         msg << " ==> Línia buida." << endl;
         msg << "[Omet i continua]" << endl;
         messages.push(msg.str());
@@ -25,8 +25,12 @@ bool Book::render_versicle(string line) {
     }
 
     // paragraph title (versicle)
-    _output << "\\paragraph{(" << BIBLE_BOOKS_SHORT[_book] << " ";
-    _output << _chapter << ":" << _versicle << ")}" << endl;
+    // OLD FORMAT
+    /*_output << "\\paragraph{(" << BIBLE_BOOKS_SHORT[_book] << " ";
+    _output << _chapter << ":" << _versicle << ")}" << endl;*/
+
+    // SIMPLER NEW FORMAT
+    _output << endl << "\\verse ";
 
     stringstream ss(line);
     string word;
@@ -52,7 +56,7 @@ bool Book::render_versicle(string line) {
             if(results.empty()) {
                 // Error
                 stringstream msg;
-                msg << "ERROR A " << BIBLE_BOOKS_SHORT[_book] << " (" << _chapter << ":" << _versicle << ")" << endl;
+                msg << "ERROR [" << _book << "_" << _chapter << "] A " << BIBLE_BOOKS_SHORT[_book] << " (" << _chapter << ":" << _versicle << ")" << endl;
                 msg << " ==> La paraula " << _word << " al text '" << word;
                 msg << "' no es troba a la base de dades." << endl;
                 msg << "[Aborta processament capítol]" << endl;
@@ -62,9 +66,8 @@ bool Book::render_versicle(string line) {
                 stringstream msg;
                 string default_word = results[0].catalan;
 
-                bool notify_warnings = true;
-                if(notify_warnings) {
-                    msg << "ADVERTÈNCIA A " << BIBLE_BOOKS_SHORT[_book] << " (" << _chapter << ":" << _versicle << ")" << endl;
+                if(NOTIFY_WARNINGS) {
+                    msg << "ADVERTÈNCIA [" << _book << "_" << _chapter << "] A " << BIBLE_BOOKS_SHORT[_book] << " (" << _chapter << ":" << _versicle << ")" << endl;
                     msg << " ==> La paraula " << _word << " al text '" << word << "' genera diversos resultats." << endl;
                     msg << "[Per defecte el primer resultat '" << default_word << "']" << endl;
                     messages.push(msg.str());
@@ -76,6 +79,8 @@ bool Book::render_versicle(string line) {
         }
         ++_word;
     }
+
+    _output << endl; // End of verse
 
     return true;
 }
@@ -89,10 +94,26 @@ bool Book::render_chapter() {
     // Stopping condition (inside the loop)
     if(not input.is_open()) {
         cout << "Error: file " << f.raw << " does not exist. Continue next book." << endl;
+        _output.close();
+
+        stringstream msg;
+        msg << "ERROR [" << _book << "_" << _chapter << "] A " << BIBLE_BOOKS_SHORT[_book] << " Cap." << _chapter << endl;
+        msg << " ==> No es pot obrir fitxer d'entrada." << endl;
+        msg << "[Ignora i continua]" << endl;
+        messages.push(msg.str());
+
         return false;
     }
     if(not _output.is_open()) {
 		cout << "Error: file " << f.tex << " cannot be opened" << endl;
+        _output.close();
+
+        stringstream msg;
+        msg << "ERROR [" << _book << "_" << _chapter << "] A " << BIBLE_BOOKS_SHORT[_book] << " Cap." << _chapter << endl;
+        msg << " ==> No es pot obrir fitxer de sortida." << endl;
+        msg << "[Ignora i continua]" << endl;
+        messages.push(msg.str());
+
 		return false;
 	}
 
@@ -104,7 +125,11 @@ bool Book::render_chapter() {
 
     // First line is the title if starts by "#"
     if (line.rfind("# ", 0) == 0) {
-        _output << "\\section{" << _chapter << "}" << endl;
+        // OLD FORMAT
+        //_output << "\\section{" << _chapter << "}" << endl;
+
+        // NEW FORMAT
+        _output << "\\begin{biblechapter}" << endl;
 	} else {
         input.clear();
         input.seekg(0, ios::beg);
@@ -118,18 +143,15 @@ bool Book::render_chapter() {
 		++_versicle;
     }
 
+    // Closing chapter (NEW FORMAT)
+    _output << "\\end{biblechapter}" << endl;
+
     _output.close();
     chapters.push_back(f.name);
     return true;
 }
 
 void Book::generate_index() {
-    // creating preamble and file index
-    /*stringstream ss;
-    ss << TEX_FOLDER << "index.tex";
-    ofstream output;
-    output.open(ss.str());*/
-
     string index = string(TEX_FOLDER) + string("index.tex");
     ofstream output(index);
 
@@ -142,9 +164,22 @@ void Book::generate_index() {
     output << "\\tableofcontents" << endl;
     output << "\\mainmatter" << endl;
 
+    // NEW FORMAT SETTINGS
+    output << "\\setlength{\\columnseprule}{.5pt}" << endl;
+
+    _book = 0;
     for(int i = 0; i < chapters.size(); ++i) {
         // \include only for chapters/sections;
         // if not, \input
+
+        // Adding book title when start
+        int book = stoi(chapters[i].substr(0,2));
+        if(book > _book) {
+            _book = book;
+            // NEW FORMAT 
+            output << "\\book{" << BIBLE_BOOKS[_book] << "}" << endl;
+        }
+
         output << "\\input{" << TEX_FOLDER << chapters[i] << "}" << endl;
     }
 
@@ -166,9 +201,6 @@ void Book::generate() {
     while(_book >= MATT and _book <= REV) {
         _chapter = 1;
         bool rendered = true;
-
-        // Bible book title (a Bible book is a Latex chapter)
-        _output << "\\chapter{" << BIBLE_BOOKS[_book] << "}" << endl;
 
         // If render_chapter returns false, breaks the loop.
         while(rendered) {
